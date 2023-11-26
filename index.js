@@ -26,22 +26,14 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    // collections
+    const articles = client.db("newspaperDB").collection("articles");
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    // articles related api
+    app.get("/articles", async(req, res)=>{
+      const result = await articles.find().toArray();
+      res.send(result);
+    })
 
     
     // Send a ping to confirm a successful connection
