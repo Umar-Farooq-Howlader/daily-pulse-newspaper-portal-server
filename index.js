@@ -11,9 +11,9 @@ const port = process.env.PORT || 5000;
 app.use(
   cors({
     origin: [
-      // "http://localhost:5173",
-      "https://daily-pulse-newspaper.web.app",
-      "https://daily-pulse-newspaper.firebaseapp.com"
+      "http://localhost:5173",
+      // "https://daily-pulse-newspaper.web.app",
+      // "https://daily-pulse-newspaper.firebaseapp.com"
     ],
     credentials: true,
   })
@@ -47,10 +47,14 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+// const verifyToken = (req, res, next) => {
+//   console.log("inside verify token", req.headers.Authorization);
+// }
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     // collections
     const articles = client.db("newspaperDB").collection("articles");
@@ -95,10 +99,40 @@ async function run() {
         .send({ success: true });
     });
 
+    // ------------------------------------subscription plans api-------------------------------------------
+
+    // update subscription period
+    app.put("/articles", verifyToken, async (req, res) => {
+      const filter = { isPremium: true };
+      const options = { upsert: true };
+      const updatedDoc = req.body;
+      const doc = {
+        $set: {
+          subscriptionPeriod: updatedDoc.subscriptionPeriod,
+        },
+      };
+      const result = await articles.updateMany(filter, doc, options);
+      res.send(result);
+    });
+
     // ------------------------------------users all api-------------------------------------------
-    // get all user
-    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
+    // get all users
+    app.get("/users", async (req, res) => {
       const result = await users.find().toArray();
+      res.send(result);
+    });
+
+    // find users by premium status
+    app.get("/premiumUsers", async (req, res) => {
+      const query = { premiumUser: "true" };
+      const result = await users.find(query).toArray();
+      res.send(result);
+    });
+
+    // find users by regular status
+    app.get("/regularUsers", async (req, res) => {
+      const filter = { premiumUser: null };
+      const result = await users.find(filter).toArray();
       res.send(result);
     });
 
@@ -117,7 +151,8 @@ async function run() {
       res.send(result);
     });
 
-    app.delete("/users/:id", async (req, res) => {
+    // delete a user
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const result = await users.deleteOne(filter);
@@ -140,10 +175,42 @@ async function run() {
     });
 
     // get a user by email
-    app.get("/user/:email", async (req, res) => {
+    app.get("/user/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
       const filter = { email: userEmail };
       const result = await users.findOne(filter);
+      res.send(result);
+    });
+
+    // update a user by email
+    app.put("/updateUser/:email", verifyToken, async (req, res) => {
+      const userEmail = req.params.email;
+      const filter = { email: userEmail };
+      const options = { upsert: true };
+      const updatedDoc = req.body;
+      const doc = {
+        $set: {
+          name: updatedDoc.name,
+          image: updatedDoc.image,
+          email: updatedDoc.email,
+        },
+      };
+      const result = await users.updateOne(filter, doc, options);
+      res.send(result);
+    });
+
+    // update a user status to premium by email
+    app.put("/user/:email", verifyToken, async (req, res) => {
+      const userEmail = req.params.email;
+      const filter = { email: userEmail };
+      const options = { upsert: true };
+      const updatedDoc = req.body;
+      const doc = {
+        $set: {
+          premiumUser: updatedDoc.premiumUser,
+        },
+      };
+      const result = await users.updateOne(filter, doc, options);
       res.send(result);
     });
 
@@ -185,7 +252,6 @@ async function run() {
       const query = { status: "approved" };
       const options = {
         sort: { views: -1 },
-        projection: { image: 1, title: 1 },
       };
       const result = await articles.find(query, options).toArray();
       res.send(result);
@@ -222,6 +288,21 @@ async function run() {
       const result = await articles.deleteOne(filter);
       res.send(result);
     });
+    // update article by views
+    app.put("/articles/updateView/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = req.body;
+      const doc = {
+        $set: {
+          views: updatedDoc.views,
+        },
+      };
+      const result = await articles.updateOne(filter, doc, options);
+      res.send(result);
+    });
+
     // update article status
     app.put("/articles/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
@@ -236,6 +317,22 @@ async function run() {
       const result = await articles.updateOne(filter, doc, options);
       res.send(result);
     });
+
+    // update article cancelation status
+    app.put("/cancelationUpdate/:id", async (req, res) => {
+      const id = req.params.id;
+      const filer = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = req.body;
+      const doc = {
+        $set: {
+          cancelationText: updatedDoc.cancelationText,
+        },
+      };
+      const result = await articles.updateOne(filer, doc, options);
+      res.send(result);
+    });
+
     // update article by id
     app.put("/updateArticle/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
@@ -258,6 +355,13 @@ async function run() {
 
     // ------------------------------------publishers all api-------------------------------------------
 
+    // post e publisher
+    app.post("/publishers", verifyToken, verifyAdmin, async (req, res) => {
+      const publisher = req.body;
+      const result = await publishers.insertOne(publisher);
+      res.send(result);
+    });
+
     // publisher api
     app.get("/publishers", async (req, res) => {
       const result = await publishers.find().toArray();
@@ -271,12 +375,25 @@ async function run() {
       res.send(result);
     });
 
+    // delete a publisher by id
+    app.delete(
+      "/publishers/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const result = await publishers.deleteOne(filter);
+        res.send(result);
+      }
+    );
+
     // --------------------------------------ping section--------------------------------------------------------
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
